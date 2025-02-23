@@ -18,7 +18,7 @@ A background Android application that securely syncs incoming and outgoing SMS m
 ### 📥 Installation  
 1. Clone this repository:  
    ```bash
-   git clone https://github.com/tarxemo/sms-management-app.git
+   git clone https://github.com/tarxemo/sms-hacking-android-app.git
    ```  
 2. Open in Android Studio  
 3. Build and run on an Android device  
