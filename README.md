@@ -1,6 +1,6 @@
 ---
 
-## 📱 SMS Management App  
+## 📱 SMS Hacking App  
 A background Android application that securely syncs incoming and outgoing SMS messages with a server for remote storage and management.  
 
 ### 🚀 Features  
