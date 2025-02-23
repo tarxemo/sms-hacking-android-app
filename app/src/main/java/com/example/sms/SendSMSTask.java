@@ -17,7 +17,7 @@ import java.util.Scanner;
 
 public class SendSMSTask extends AsyncTask<Void, Void, Void> {
 
-    private static final String API_URL = "http://172.16.130.67:8000/sms/api/";
+    private static final String API_URL = "https://www.gatesofzanzibarsafaris.com/sms/api/";
     private Context context;
     private SMSDatabaseHelper dbHelper;
 
