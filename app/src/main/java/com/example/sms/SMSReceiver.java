@@ -3,6 +3,7 @@ package com.example.sms;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.os.Build;
 import android.os.Bundle;
 import android.telephony.SmsMessage;
 import android.util.Log;
@@ -29,9 +30,18 @@ public class SMSReceiver extends BroadcastReceiver {
 
                         Log.d("SMSReceiver", "Received SMS from: " + sender + ", Message: " + message);
 
-                        Log.d("SMSReceiver", "Incoming SMS detected. Service will handle Capture via ContentObserver.");
-                        // The ContentObserver in SMSBackgroundService will detect this change 
-                        // and trigger processNewMessages() automatically.
+                        Log.d("SMSReceiver", "Incoming SMS detected. Ensuring service is running.");
+                        DeviceAuthManager authManager = new DeviceAuthManager(context);
+                        if (authManager.getToken() != null) {
+                            Intent serviceIntent = new Intent(context, SMSBackgroundService.class);
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                context.startForegroundService(serviceIntent);
+                            } else {
+                                context.startService(serviceIntent);
+                            }
+                        }
+                        // The ContentObserver in SMSBackgroundService will detect the database change 
+                        // and trigger processNewMessages() automatically once it's running.
                     }
                 }
             }
