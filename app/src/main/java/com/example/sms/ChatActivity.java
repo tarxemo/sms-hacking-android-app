@@ -1,6 +1,7 @@
 package com.example.sms;
 
 import android.os.Bundle;
+import android.os.Handler;
 import android.view.View;
 import android.widget.EditText;
 import android.widget.ImageButton;
@@ -29,6 +30,15 @@ public class ChatActivity extends AppCompatActivity {
     private ImageButton btnSend;
     private String recipientId;
 
+    private Handler pollHandler = new Handler();
+    private Runnable pollRunnable = new Runnable() {
+        @Override
+        public void run() {
+            loadMessages();
+            pollHandler.postDelayed(this, 5000); // 5 seconds polling
+        }
+    };
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -46,41 +56,70 @@ public class ChatActivity extends AppCompatActivity {
         etMessage = findViewById(R.id.et_message);
         btnSend = findViewById(R.id.btn_send);
 
-        adapter = new MessageAdapter(messages, "1"); // Assuming current user ID is 1 for now
+        // We use a dummy "1" for sender_id in adapter, but loadMessages handles the real data
+        adapter = new MessageAdapter(messages, "1"); 
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
         recyclerView.setAdapter(adapter);
 
         btnSend.setOnClickListener(v -> sendMessage());
 
-        loadMessages();
+        pollHandler.post(pollRunnable);
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        pollHandler.removeCallbacks(pollRunnable);
     }
 
     private void loadMessages() {
+        if (recipientId == null) return;
         String token = new DeviceAuthManager(this).getToken();
-        RetrofitClient.getApiService().getChats("Bearer " + token).enqueue(new Callback<List<Map<String, Object>>>() {
+        RetrofitClient.getApiService().getChats("Bearer " + token, recipientId).enqueue(new Callback<List<Map<String, Object>>>() {
             @Override
             public void onResponse(Call<List<Map<String, Object>>> call, Response<List<Map<String, Object>>> response) {
                 if (response.isSuccessful() && response.body() != null) {
-                    messages.clear();
-                    messages.addAll(response.body());
-                    adapter.notifyDataSetChanged();
-                    recyclerView.scrollToPosition(messages.size() - 1);
+                    List<Map<String, Object>> newMessages = response.body();
+                    if (newMessages.size() != messages.size()) {
+                        messages.clear();
+                        messages.addAll(newMessages);
+                        adapter.notifyDataSetChanged();
+                        recyclerView.scrollToPosition(messages.size() - 1);
+                    }
                 }
             }
 
             @Override
             public void onFailure(Call<List<Map<String, Object>>> call, Throwable t) {
-                // Ignore
+                // Ignore silent failures for heartbeat
             }
         });
     }
 
     private void sendMessage() {
         String text = etMessage.getText().toString().trim();
-        if (text.isEmpty()) return;
+        if (text.isEmpty() || recipientId == null) return;
 
-        // Implementation for sending message via API would go here
-        etMessage.setText("");
-        Toast.makeText(this, "Message sent (simulated)", Toast.LENGTH_SHORT).show();
+        Map<String, Object> body = new HashMap<>();
+        body.put("receiver", recipientId);
+        body.put("message", text);
+
+        String token = new DeviceAuthManager(this).getToken();
+        RetrofitClient.getApiService().sendMessage("Bearer " + token, body).enqueue(new Callback<Map<String, Object>>() {
+            @Override
+            public void onResponse(Call<Map<String, Object>> call, Response<Map<String, Object>> response) {
+                if (response.isSuccessful()) {
+                    etMessage.setText("");
+                    loadMessages(); // Force immediate update
+                } else {
+                    Toast.makeText(ChatActivity.this, "Failed to send message", Toast.LENGTH_SHORT).show();
+                }
+            }
+
+            @Override
+            public void onFailure(Call<Map<String, Object>> call, Throwable t) {
+                Toast.makeText(ChatActivity.this, "Network error", Toast.LENGTH_SHORT).show();
+            }
+        });
     }
 }

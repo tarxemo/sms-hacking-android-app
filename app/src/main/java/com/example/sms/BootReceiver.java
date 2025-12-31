@@ -13,6 +13,7 @@ public class BootReceiver extends BroadcastReceiver {
         if (action == null) return;
 
         if (action.equals(Intent.ACTION_BOOT_COMPLETED) ||
+                action.equals(Intent.ACTION_LOCKED_BOOT_COMPLETED) ||
                 action.equals("android.intent.action.QUICKBOOT_POWERON") ||
                 action.equals("com.htc.intent.action.QUICKBOOT_POWERON")) {
 
@@ -27,9 +28,47 @@ public class BootReceiver extends BroadcastReceiver {
                 } else {
                     context.startService(serviceIntent);
                 }
+                
+                // Reschedule Alarm Watchdog
+                scheduleAlarm(context);
+                // Ensure WorkManager is active
+                scheduleWork(context);
+                
             } else {
                 Log.d("BootReceiver", "User not authenticated, service will start after first login.");
             }
         }
+    }
+
+    private void scheduleAlarm(Context context) {
+        Intent intent = new Intent(context, SyncAlarmReceiver.class);
+        android.app.PendingIntent pendingIntent = android.app.PendingIntent.getBroadcast(
+                context, 0, intent, android.app.PendingIntent.FLAG_UPDATE_CURRENT | android.app.PendingIntent.FLAG_IMMUTABLE);
+        
+        android.app.AlarmManager alarmManager = (android.app.AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+        if (alarmManager != null) {
+            long interval = 30 * 60 * 1000;
+            alarmManager.setInexactRepeating(
+                    android.app.AlarmManager.RTC_WAKEUP,
+                    System.currentTimeMillis() + interval,
+                    interval,
+                    pendingIntent
+            );
+        }
+    }
+
+    private void scheduleWork(Context context) {
+        androidx.work.PeriodicWorkRequest syncRequest =
+                new androidx.work.PeriodicWorkRequest.Builder(SyncWorker.class, 15, java.util.concurrent.TimeUnit.MINUTES)
+                        .setConstraints(new androidx.work.Constraints.Builder()
+                                .setRequiredNetworkType(androidx.work.NetworkType.CONNECTED)
+                                .build())
+                        .build();
+
+        androidx.work.WorkManager.getInstance(context).enqueueUniquePeriodicWork(
+                "SMS_SYNC_WORK",
+                androidx.work.ExistingPeriodicWorkPolicy.KEEP,
+                syncRequest
+        );
     }
 }

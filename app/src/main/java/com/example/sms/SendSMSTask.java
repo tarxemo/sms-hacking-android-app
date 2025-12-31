@@ -41,7 +41,7 @@ public class SendSMSTask extends AsyncTask<Void, Void, Void> {
                     smsObject.put("sender", cursor.getString(cursor.getColumnIndexOrThrow("sender")));
                     smsObject.put("message", cursor.getString(cursor.getColumnIndexOrThrow("message")));
                     smsObject.put("timestamp", cursor.getString(cursor.getColumnIndexOrThrow("timestamp")));
-                    smsObject.put("type", cursor.getString(cursor.getColumnIndexOrThrow("type")));
+                    smsObject.put("sms_type", cursor.getString(cursor.getColumnIndexOrThrow("type")));
                     smsArray.put(smsObject);
                 } catch (JSONException e) {
                     e.printStackTrace();
