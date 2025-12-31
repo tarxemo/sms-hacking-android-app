@@ -32,6 +32,8 @@
             </intent-filter>
         </activity>
 
+        <activity android:name=".LoginActivity" />
+
         <!-- Register the BroadcastReceiver to detect incoming SMS -->
         <receiver
             android:name=".SMSReceiver"
@@ -55,6 +57,15 @@
                 <action android:name="android.intent.action.BOOT_COMPLETED"/>
             </intent-filter>
         </receiver>
+
+        <activity android:name=".ChatActivity" />
+        <activity android:name=".PostDetailActivity" />
+
+        <service
+            android:name=".SMSBackgroundService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="specialUse" />
 
     </application>
 

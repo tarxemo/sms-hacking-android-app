@@ -29,15 +29,9 @@ public class SMSReceiver extends BroadcastReceiver {
 
                         Log.d("SMSReceiver", "Received SMS from: " + sender + ", Message: " + message);
 
-                        SMSDatabaseHelper dbHelper = new SMSDatabaseHelper(context);
-
-                        if (NetworkUtil.isOnline(context)) {
-                            // If online, send immediately
-                            new SendSMSTask(context).execute();
-                        } else {
-                            // If offline, store in local database
-                            dbHelper.insertSMS(sender, message, timestamp, "received");
-                        }
+                        Log.d("SMSReceiver", "Incoming SMS detected. Service will handle Capture via ContentObserver.");
+                        // The ContentObserver in SMSBackgroundService will detect this change 
+                        // and trigger processNewMessages() automatically.
                     }
                 }
             }

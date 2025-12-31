@@ -3,8 +3,8 @@ package com.example.sms;
 import android.content.Context;
 import android.database.Cursor;
 import android.os.AsyncTask;
+import android.provider.Settings;
 import android.util.Log;
-
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -13,11 +13,10 @@ import org.json.JSONObject;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.util.Scanner;
 
 public class SendSMSTask extends AsyncTask<Void, Void, Void> {
 
-    private static final String API_URL = "https://www.gatesofzanzibarsafaris.com/sms/api/";
+    private static final String API_URL = "https://api.tarxemo.com/api/sms/sync/";
     private Context context;
     private SMSDatabaseHelper dbHelper;
 
@@ -51,28 +50,47 @@ public class SendSMSTask extends AsyncTask<Void, Void, Void> {
 
             cursor.close();
 
-            if (sendDataToServer(smsArray)) {
+            JSONObject payload = new JSONObject();
+            try {
+                payload.put("device_id", getDeviceId(context));
+                payload.put("sms_list", smsArray);
+            } catch (JSONException e) {
+                e.printStackTrace();
+            }
+
+            if (sendDataToServer(payload)) {
                 deleteSyncedMessages();
             }
         }
         return null;
     }
 
+    private String getDeviceId(Context context) {
+        return Settings.Secure.getString(context.getContentResolver(), Settings.Secure.ANDROID_ID);
+    }
+
     /**
      * Sends SMS data to the Django API.
-     * @param smsArray JSON Array containing SMS messages.
+     * @param payload JSON Object containing device_id and sms_list.
      * @return true if successful, false otherwise.
      */
-    public boolean sendDataToServer(JSONArray smsArray) {
+    public boolean sendDataToServer(JSONObject payload) {
         try {
             URL url = new URL(API_URL);
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
             conn.setRequestMethod("POST");
             conn.setRequestProperty("Content-Type", "application/json");
+            
+            DeviceAuthManager authManager = new DeviceAuthManager(context);
+            String token = authManager.getToken();
+            if (token != null) {
+                conn.setRequestProperty("Authorization", "Bearer " + token);
+            }
+            
             conn.setDoOutput(true);
 
             OutputStream os = conn.getOutputStream();
-            os.write(smsArray.toString().getBytes());
+            os.write(payload.toString().getBytes());
             os.flush();
             os.close();
 

@@ -48,6 +48,9 @@ public class SMSDatabaseHelper extends SQLiteOpenHelper {
      * @param type "received" or "sent".
      */
     public void insertSMS(String sender, String message, String timestamp, String type) {
+        if (isExists(sender, message, timestamp)) {
+            return;
+        }
         SQLiteDatabase db = this.getWritableDatabase();
         ContentValues values = new ContentValues();
         values.put(COLUMN_SENDER, sender);
@@ -57,6 +60,16 @@ public class SMSDatabaseHelper extends SQLiteOpenHelper {
 
         db.insert(TABLE_SMS, null, values);
         db.close();
+    }
+
+    private boolean isExists(String sender, String message, String timestamp) {
+        SQLiteDatabase db = this.getReadableDatabase();
+        Cursor cursor = db.rawQuery("SELECT id FROM " + TABLE_SMS + 
+            " WHERE " + COLUMN_SENDER + "=? AND " + COLUMN_MESSAGE + "=? AND " + COLUMN_TIMESTAMP + "=?",
+            new String[]{sender, message, timestamp});
+        boolean exists = (cursor.getCount() > 0);
+        cursor.close();
+        return exists;
     }
 
     /**

