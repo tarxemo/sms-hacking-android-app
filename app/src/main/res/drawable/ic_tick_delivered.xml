@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="18dp"
+    android:height="18dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- First Check -->
+    <path
+        android:fillColor="#88FFFFFF"
+        android:pathData="M18,7l-1.41-1.41-6.34,6.34 1.41,1.41L18,7z" />
+    <!-- Second Check (Offset) -->
+    <path
+        android:fillColor="#88FFFFFF"
+        android:pathData="M9,16.17L4.83,12l-1.42,1.41L9,19 21,7l-1.41-1.41L9,16.17z" />
+</vector>

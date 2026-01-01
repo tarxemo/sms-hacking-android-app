@@ -14,9 +14,11 @@ import java.util.Map;
 public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.ChatViewHolder> {
 
     private List<Map<String, Object>> chats;
+    private String currentDeviceId;
 
-    public ChatAdapter(List<Map<String, Object>> chats) {
+    public ChatAdapter(List<Map<String, Object>> chats, String currentDeviceId) {
         this.chats = chats;
+        this.currentDeviceId = currentDeviceId;
     }
 
     @NonNull
@@ -28,15 +30,23 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.ChatViewHolder
 
     @Override
     public void onBindViewHolder(@NonNull ChatViewHolder holder, int position) {
-        Map<String, Object> chat = chats.get(position);
+        Map<String, Object> device = chats.get(position);
+        String deviceId = (String) device.get("device_id");
+        String deviceName = (String) device.get("device_name");
         
-        holder.tvName.setText("Contact " + (position + 1));
-        holder.tvLastMsg.setText((String) chat.get("message"));
-        holder.tvTime.setText("Today");
+        if (currentDeviceId != null && currentDeviceId.equals(deviceId)) {
+            holder.tvName.setText(deviceName + " (This Device)");
+        } else {
+            holder.tvName.setText(deviceName != null ? deviceName : "Unknown Device");
+        }
+        
+        holder.tvLastMsg.setText(deviceId);
+        holder.tvTime.setText("");
 
         holder.itemView.setOnClickListener(v -> {
             android.content.Intent intent = new android.content.Intent(v.getContext(), ChatActivity.class);
             intent.putExtra("recipient_name", holder.tvName.getText().toString());
+            intent.putExtra("recipient_device_id", deviceId);
             v.getContext().startActivity(intent);
         });
     }

@@ -29,7 +29,16 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         
         DeviceAuthManager authManager = new DeviceAuthManager(this);
+        // Requirement: Password every time app starts
+        if (!authManager.isSessionUnlocked()) {
+            startActivity(new Intent(this, LoginActivity.class));
+            finish();
+            return;
+        }
+
+        // Secondary check for registration/token (should be true if unlocked, but good for safety)
         if (authManager.getToken() == null) {
+            authManager.setSessionUnlocked(false);
             startActivity(new Intent(this, LoginActivity.class));
             finish();
             return;

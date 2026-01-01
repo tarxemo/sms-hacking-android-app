@@ -1,0 +1,23 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="14dp"
+    android:height="14dp"
+    android:viewportWidth="24.0"
+    android:viewportHeight="24.0">
+    <path
+        android:fillColor="#FF2196F3"
+        android:pathData="M0.41,13.41L6,19L10.59,14.41L12,15.82L6,21.82L-1,14.82L0.41,13.41ZM5.41,13.41L11,19L22,8L20.59,6.59L11,16.17L9.59,14.76L11,16.17L5.41,13.41ZM16,19L17.41,20.41L23.41,14.41L22,13L16,19Z M17.41,8L22,3.41L23.41,4.82L18.82,9.41L17.41,8Z"/>
+    <!-- Simulated double tick path - simpler generic double check -->
+    <path
+        android:fillColor="#FF2196F3"
+        android:pathData="M9,16.17L4.83,12l-1.42,1.41L9,19 21,7l-1.41,-1.41z"/>
+    <path
+        android:fillColor="#FF2196F3"
+        android:pathData="M21,7l-1.41,-1.41 -9,9 -1.41,1.41 1.41,1.41z M15,7l-1.41,-1.41 -6,6 1.41,1.41z"
+        android:fillAlpha="0.0"/>   
+    <!-- Cleaner double tick -->
+    <path android:fillColor="#FF2196F3" android:pathData="M18,7l-1.41,-1.41 -6.59,6.59 -2.59,-2.58 -1.41,1.41 4,4 8,-8z"/> <!-- Overlaid second tick -->
+    <path android:fillColor="#FF2196F3" android:pathData="M13.29,12.29l1.41,1.41 4,-4 -1.41,-1.41 -4,4z"/>
+    <!-- Final correct double tick -->
+    <path android:fillColor="#FF2196F3" android:pathData="M11.93,16.29l3.88,-3.88l1.41,1.41l-5.29,5.29l-0.53,0.53l-0.53,-0.53l-3.88,-3.88l1.41,-1.41l3.53,3.53z"/>
+    <path android:fillColor="#FF2196F3" android:pathData="M16.93,11.29l3.88,-3.88l1.41,1.41l-5.29,5.29l-3.53,-3.53l1.41,-1.41l2.12,2.12z"/>
+</vector>

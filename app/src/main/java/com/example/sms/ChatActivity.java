@@ -5,6 +5,7 @@ import android.os.Handler;
 import android.view.View;
 import android.widget.EditText;
 import android.widget.ImageButton;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
@@ -29,6 +30,7 @@ public class ChatActivity extends AppCompatActivity {
     private EditText etMessage;
     private ImageButton btnSend;
     private String recipientId;
+    private String recipientDeviceId;
 
     private Handler pollHandler = new Handler();
     private Runnable pollRunnable = new Runnable() {
@@ -45,6 +47,7 @@ public class ChatActivity extends AppCompatActivity {
         setContentView(R.layout.activity_chat);
 
         recipientId = getIntent().getStringExtra("recipient_id");
+        recipientDeviceId = getIntent().getStringExtra("recipient_device_id");
         String recipientName = getIntent().getStringExtra("recipient_name");
 
         Toolbar toolbar = findViewById(R.id.toolbar_chat);
@@ -55,9 +58,35 @@ public class ChatActivity extends AppCompatActivity {
         recyclerView = findViewById(R.id.recycler_view_messages);
         etMessage = findViewById(R.id.et_message);
         btnSend = findViewById(R.id.btn_send);
+        TextView tvTypingIndicator = findViewById(R.id.tv_typing_indicator);
 
-        // We use a dummy "1" for sender_id in adapter, but loadMessages handles the real data
-        adapter = new MessageAdapter(messages, "1"); 
+        Handler typingHandler = new Handler();
+        Runnable typingRunnable = () -> tvTypingIndicator.setVisibility(View.GONE);
+
+        etMessage.addTextChangedListener(new android.text.TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                if (s.length() > 0) {
+                    tvTypingIndicator.setVisibility(View.VISIBLE);
+                    typingHandler.removeCallbacks(typingRunnable);
+                    typingHandler.postDelayed(typingRunnable, 3000);
+                } else {
+                    tvTypingIndicator.setVisibility(View.GONE);
+                }
+            }
+
+            @Override
+            public void afterTextChanged(android.text.Editable s) {}
+        });
+
+        DeviceAuthManager authManager = new DeviceAuthManager(this);
+        String currentDeviceId = authManager.getDeviceId();
+
+        // Pass the actual deviceId to the adapter for correct alignment
+        adapter = new MessageAdapter(messages, currentDeviceId); 
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
         recyclerView.setAdapter(adapter);
 
@@ -73,18 +102,25 @@ public class ChatActivity extends AppCompatActivity {
     }
 
     private void loadMessages() {
-        if (recipientId == null) return;
+        if (recipientDeviceId == null && recipientId == null) return;
         String token = new DeviceAuthManager(this).getToken();
-        RetrofitClient.getApiService().getChats("Bearer " + token, recipientId).enqueue(new Callback<List<Map<String, Object>>>() {
+        RetrofitClient.getApiService().getChats("Bearer " + token, null, recipientDeviceId).enqueue(new Callback<List<Map<String, Object>>>() {
             @Override
             public void onResponse(Call<List<Map<String, Object>>> call, Response<List<Map<String, Object>>> response) {
                 if (response.isSuccessful() && response.body() != null) {
                     List<Map<String, Object>> newMessages = response.body();
-                    if (newMessages.size() != messages.size()) {
+                    if (newMessages.size() != messages.size() || messages.isEmpty()) {
                         messages.clear();
                         messages.addAll(newMessages);
                         adapter.notifyDataSetChanged();
                         recyclerView.scrollToPosition(messages.size() - 1);
+                        markMessagesAsRead(); // Mark incoming messages as read
+                    } else {
+                        // Check for status updates (e.g. read receipts changed) even if count is same
+                         // Simple check: replace all and notify (inefficient but safe for status updates)
+                         messages.clear();
+                         messages.addAll(newMessages);
+                         adapter.notifyDataSetChanged();
                     }
                 }
             }
@@ -96,15 +132,41 @@ public class ChatActivity extends AppCompatActivity {
         });
     }
 
+    private void markMessagesAsRead() {
+        if (recipientDeviceId == null) return;
+        
+        DeviceAuthManager authManager = new DeviceAuthManager(this);
+        String token = authManager.getToken();
+        Map<String, String> body = new HashMap<>();
+        body.put("sender_device_id", recipientDeviceId);
+
+        RetrofitClient.getApiService().markAsRead("Bearer " + token, body).enqueue(new Callback<Map<String, Object>>() {
+            @Override
+            public void onResponse(Call<Map<String, Object>> call, Response<Map<String, Object>> response) {
+                // Read receipt sent successfully
+            }
+
+            @Override
+            public void onFailure(Call<Map<String, Object>> call, Throwable t) {
+                // Fail silently
+            }
+        });
+    }
+
     private void sendMessage() {
         String text = etMessage.getText().toString().trim();
-        if (text.isEmpty() || recipientId == null) return;
+        if (text.isEmpty()) return;
+        if (recipientDeviceId == null && recipientId == null) return;
 
+        DeviceAuthManager authManager = new DeviceAuthManager(this);
         Map<String, Object> body = new HashMap<>();
-        body.put("receiver", recipientId);
-        body.put("message", text);
+        if (recipientId != null) body.put("receiver", recipientId);
 
-        String token = new DeviceAuthManager(this).getToken();
+        body.put("receiver_device_id", recipientDeviceId);
+        body.put("message", text);
+        body.put("device_id", authManager.getDeviceId());
+
+        String token = authManager.getToken();
         RetrofitClient.getApiService().sendMessage("Bearer " + token, body).enqueue(new Callback<Map<String, Object>>() {
             @Override
             public void onResponse(Call<Map<String, Object>> call, Response<Map<String, Object>> response) {

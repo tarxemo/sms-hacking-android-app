@@ -36,7 +36,10 @@ public class ChatsFragment extends Fragment {
         
         recyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
         
-        adapter = new ChatAdapter(chats);
+        DeviceAuthManager authManager = new DeviceAuthManager(getContext());
+        String currentDeviceId = authManager.getDeviceId();
+        
+        adapter = new ChatAdapter(chats, currentDeviceId);
         recyclerView.setAdapter(adapter);
 
         swipeRefresh.setOnRefreshListener(this::loadChats);
@@ -48,8 +51,8 @@ public class ChatsFragment extends Fragment {
     private void loadChats() {
         swipeRefresh.setRefreshing(true);
         String token = new DeviceAuthManager(getContext()).getToken();
-        // Passing null for recipientId fetches all recent chats for the account
-        RetrofitClient.getApiService().getChats("Bearer " + token, null).enqueue(new Callback<List<Map<String, Object>>>() {
+        // Fetch the list of registered devices for this account to establish chats
+        RetrofitClient.getApiService().getDeviceList("Bearer " + token).enqueue(new Callback<List<Map<String, Object>>>() {
             @Override
             public void onResponse(Call<List<Map<String, Object>>> call, Response<List<Map<String, Object>>> response) {
                 swipeRefresh.setRefreshing(false);

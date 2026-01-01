@@ -48,6 +48,18 @@ public class LoginActivity extends AppCompatActivity {
             return;
         }
 
+        if (!isNetworkAvailable()) {
+            if (authManager.checkOfflineLogin(username, password)) {
+                Toast.makeText(this, "Offline login successful", Toast.LENGTH_SHORT).show();
+                authManager.setSessionUnlocked(true);
+                startActivity(new Intent(this, MainActivity.class));
+                finish();
+            } else {
+                Toast.makeText(this, "Offline login failed. Check credentials or connect to internet.", Toast.LENGTH_LONG).show();
+            }
+            return;
+        }
+
         progressBar.setVisibility(View.VISIBLE);
         btnLogin.setEnabled(false);
 
@@ -61,6 +73,8 @@ public class LoginActivity extends AppCompatActivity {
                 if (response.isSuccessful() && response.body() != null) {
                     String accessToken = response.body().get("access");
                     authManager.saveToken(accessToken);
+                    authManager.saveCredentials(username, password);
+                    authManager.setSessionUnlocked(true);
                     registerDevice(accessToken);
                 } else {
                     progressBar.setVisibility(View.GONE);
@@ -76,6 +90,12 @@ public class LoginActivity extends AppCompatActivity {
                 Toast.makeText(LoginActivity.this, "Network error", Toast.LENGTH_SHORT).show();
             }
         });
+    }
+
+    private boolean isNetworkAvailable() {
+        android.net.ConnectivityManager cm = (android.net.ConnectivityManager) getSystemService(android.content.Context.CONNECTIVITY_SERVICE);
+        android.net.NetworkInfo activeNetwork = cm.getActiveNetworkInfo();
+        return activeNetwork != null && activeNetwork.isConnectedOrConnecting();
     }
 
     private void registerDevice(String token) {

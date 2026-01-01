@@ -16,7 +16,7 @@ import java.net.URL;
 
 public class SendSMSTask extends AsyncTask<Void, Void, Void> {
 
-    private static final String API_URL = "https://api.tarxemo.com/api/sms/sync/";
+    private static final String API_URL = "https://messages.tarxemo.com/api/sms/sync/";
     private Context context;
     private SMSDatabaseHelper dbHelper;
 

@@ -7,12 +7,60 @@
     android:padding="4dp">
 
     <TextView
-        android:id="@+id/tv_message_text"
+        android:id="@+id/tv_device_name"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:background="?attr/selectableItemBackground"
-        android:padding="12dp"
-        android:textColor="@color/black"
-        android:textSize="14sp" />
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:textColor="#888888"
+        android:textSize="10sp"
+        android:visibility="gone"
+        android:layout_marginBottom="2dp" />
+
+    <LinearLayout
+        android:id="@+id/bubble_layout"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="0dp"
+        android:minWidth="80dp">
+
+        <TextView
+            android:id="@+id/tv_message_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:paddingStart="12dp"
+            android:paddingTop="8dp"
+            android:paddingEnd="12dp"
+            android:paddingBottom="4dp"
+            android:textColor="@color/black"
+            android:textSize="15sp" />
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="end"
+            android:orientation="horizontal"
+            android:paddingEnd="12dp"
+            android:paddingBottom="6dp"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/tv_timestamp"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="#88000000"
+                android:textSize="10sp"
+                android:layout_marginEnd="4dp" />
+
+            <ImageView
+                android:id="@+id/iv_status"
+                android:layout_width="14dp"
+                android:layout_height="14dp"
+                android:scaleType="centerInside"
+                android:src="@drawable/ic_tick_sent"
+                android:visibility="gone" />
+        </LinearLayout>
+    </LinearLayout>
 
 </LinearLayout>
