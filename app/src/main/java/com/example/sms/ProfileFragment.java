@@ -12,13 +12,22 @@ import androidx.fragment.app.Fragment;
 
 public class ProfileFragment extends Fragment {
 
-    @Nullable
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
-        View view = inflater.inflate(android.R.layout.simple_list_item_1, container, false);
-        TextView tv = view.findViewById(android.R.id.text1);
-        tv.setText("User Profile\nSettings\nPrivacy\nLogout");
-        tv.setPadding(32, 32, 32, 32);
+        View view = inflater.inflate(R.layout.fragment_profile, container, false);
+        
+        DeviceAuthManager authManager = new DeviceAuthManager(requireContext());
+        TextView tvUsername = view.findViewById(R.id.tv_username);
+        tvUsername.setText(authManager.getDeviceName()); // Display device name as username for now
+
+        view.findViewById(R.id.tv_logout).setOnClickListener(v -> {
+            authManager.setSessionUnlocked(false);
+            // Optionally clear token if you want a full logout, but usually just lock session
+            // authManager.saveToken(null); 
+            requireActivity().startActivity(new android.content.Intent(requireContext(), LoginActivity.class));
+            requireActivity().finish();
+        });
+
         return view;
     }
 }

@@ -29,6 +29,10 @@ public class BootReceiver extends BroadcastReceiver {
                     context.startService(serviceIntent);
                 }
                 
+                // Trigger immediate sync on boot
+                Log.d("BootReceiver", "Triggering immediate boot sync.");
+                new SendSMSTask(context).execute();
+                
                 // Reschedule Alarm Watchdog
                 scheduleAlarm(context);
                 // Ensure WorkManager is active

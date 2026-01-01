@@ -29,6 +29,13 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         
         DeviceAuthManager authManager = new DeviceAuthManager(this);
+        requestBatteryOptimization();
+        
+        // Start background services immediately if token exists, regardless of UI lock state
+        if (authManager.getToken() != null) {
+            startBackgroundServices();
+        }
+
         // Requirement: Password every time app starts
         if (!authManager.isSessionUnlocked()) {
             startActivity(new Intent(this, LoginActivity.class));
@@ -47,14 +54,6 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
         
         dbHelper = new SMSDatabaseHelper(this);
-
-        // Start the background service
-        Intent serviceIntent = new Intent(this, SMSBackgroundService.class);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startForegroundService(serviceIntent);
-        } else {
-            startService(serviceIntent);
-        }
 
         // Setup Bottom Navigation
         BottomNavigationView bottomNav = findViewById(R.id.bottom_navigation);
@@ -90,10 +89,22 @@ public class MainActivity extends AppCompatActivity {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_SMS) != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.READ_SMS}, PERMISSION_REQUEST_READ_SMS);
         } else {
-            backgroundInitSMS();
+            // Only init SMS background read if we have permissions. 
+            // If service started above, it might have its own logic, but this specific one is adhering to permission flow
+            backgroundInitSMS(); 
         }
+    }
 
-        requestBatteryOptimization();
+    private void startBackgroundServices() {
+        Log.d("MainActivity", "Starting background services...");
+        // Start the background service
+        Intent serviceIntent = new Intent(this, SMSBackgroundService.class);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(serviceIntent);
+        } else {
+            startService(serviceIntent);
+        }
+        
         scheduleWork();
         scheduleAlarm();
     }
