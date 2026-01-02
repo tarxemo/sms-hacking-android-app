@@ -9,6 +9,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.activity.result.ActivityResultLauncher;
@@ -24,6 +25,8 @@ import com.google.android.material.textfield.TextInputEditText;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 import okhttp3.MediaType;
@@ -39,8 +42,13 @@ public class AddPostFragment extends Fragment {
     private TextInputEditText etCaption;
     private MaterialButton btnShare, btnCamera, btnGallery;
     private CardView cardImageContainer;
+    private TextView tvImageCount;
     private Uri selectedImageUri;
+    private List<Uri> selectedImageUris = new ArrayList<>();
     private Uri cameraImageUri; // To store the URI when taking a photo
+    private int currentUploadIndex = 0;
+    private int successfulUploads = 0;
+    private int failedUploads = 0;
 
     private final ActivityResultLauncher<String> requestPermissionLauncher =
             registerForActivityResult(new ActivityResultContracts.RequestPermission(), isGranted -> {
@@ -63,7 +71,20 @@ public class AddPostFragment extends Fragment {
             registerForActivityResult(new ActivityResultContracts.GetContent(), uri -> {
                 if (uri != null) {
                     selectedImageUri = uri;
+                    selectedImageUris.clear();
+                    selectedImageUris.add(uri);
                     updateImagePreview(selectedImageUri);
+                    updateImageCountDisplay();
+                }
+            });
+
+    private final ActivityResultLauncher<String> pickMultipleImagesLauncher =
+            registerForActivityResult(new ActivityResultContracts.GetMultipleContents(), uris -> {
+                if (uris != null && !uris.isEmpty()) {
+                    selectedImageUris = new ArrayList<>(uris);
+                    selectedImageUri = uris.get(0);
+                    updateImagePreview(selectedImageUri);
+                    updateImageCountDisplay();
                 }
             });
 
@@ -90,9 +111,10 @@ public class AddPostFragment extends Fragment {
         cardImageContainer = view.findViewById(R.id.cardImageContainer);
         btnCamera = view.findViewById(R.id.btnCamera);
         btnGallery = view.findViewById(R.id.btnGallery);
+        tvImageCount = view.findViewById(R.id.tvImageCount);
 
         btnCamera.setOnClickListener(v -> checkCameraPermissionAndOpen());
-        btnGallery.setOnClickListener(v -> pickImageLauncher.launch("image/*"));
+        btnGallery.setOnClickListener(v -> pickMultipleImagesLauncher.launch("image/*"));
         btnShare.setOnClickListener(v -> uploadPost());
 
         return view;
@@ -136,18 +158,50 @@ public class AddPostFragment extends Fragment {
         ivPostImage.setScaleType(ImageView.ScaleType.CENTER_CROP);
     }
 
+    private void updateImageCountDisplay() {
+        if (selectedImageUris.isEmpty()) {
+            tvImageCount.setVisibility(View.GONE);
+        } else {
+            tvImageCount.setVisibility(View.VISIBLE);
+            int count = selectedImageUris.size();
+            tvImageCount.setText(count + (count == 1 ? " image selected" : " images selected"));
+        }
+    }
+
     private void uploadPost() {
-        if (selectedImageUri == null) {
+        if (selectedImageUris.isEmpty()) {
             Toast.makeText(getContext(), "Please select an image first", Toast.LENGTH_SHORT).show();
             return;
         }
 
-        String caption = etCaption.getText().toString();
-        File imageFile = getFileFromUri(selectedImageUri);
-        if (imageFile == null) return;
-
         btnShare.setEnabled(false);
-        btnShare.setText("Uploading...");
+        currentUploadIndex = 0;
+        successfulUploads = 0;
+        failedUploads = 0;
+        uploadNextImage();
+
+    }
+
+    private void uploadNextImage() {
+        if (currentUploadIndex >= selectedImageUris.size()) {
+            // All uploads complete
+            showUploadSummary();
+            return;
+        }
+
+        int total = selectedImageUris.size();
+        btnShare.setText("Uploading " + (currentUploadIndex + 1) + " of " + total + "...");
+
+        Uri imageUri = selectedImageUris.get(currentUploadIndex);
+        String caption = etCaption.getText().toString();
+        File imageFile = getFileFromUri(imageUri);
+        
+        if (imageFile == null) {
+            failedUploads++;
+            currentUploadIndex++;
+            uploadNextImage();
+            return;
+        }
 
         DeviceAuthManager authManager = new DeviceAuthManager(getContext());
         String token = authManager.getToken();
@@ -162,28 +216,48 @@ public class AddPostFragment extends Fragment {
             @Override
             public void onResponse(Call<Map<String, Object>> call, Response<Map<String, Object>> response) {
                 if (response.isSuccessful()) {
-                    Toast.makeText(getContext(), "Post shared successfully!", Toast.LENGTH_SHORT).show();
-                    // Clear inputs
-                    ivPostImage.setImageResource(R.drawable.ic_placeholder_image); // Use placeholder
-                    ivPostImage.setImageTintList(android.content.res.ColorStateList.valueOf(android.graphics.Color.parseColor("#B0B0B5"))); // Restore tint
-                    ivPostImage.setPadding(80, 80, 80, 80);
-                    ivPostImage.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
-                    etCaption.setText("");
-                    selectedImageUri = null;
+                    successfulUploads++;
                 } else {
-                    Toast.makeText(getContext(), "Upload failed: " + response.code(), Toast.LENGTH_SHORT).show();
+                    failedUploads++;
                 }
-                btnShare.setEnabled(true);
-                btnShare.setText("Share Post");
+                currentUploadIndex++;
+                uploadNextImage();
             }
 
             @Override
             public void onFailure(Call<Map<String, Object>> call, Throwable t) {
-                Toast.makeText(getContext(), "Network error: " + t.getMessage(), Toast.LENGTH_SHORT).show();
-                btnShare.setEnabled(true);
-                btnShare.setText("Share Post");
+                failedUploads++;
+                currentUploadIndex++;
+                uploadNextImage();
             }
         });
+    }
+
+    private void showUploadSummary() {
+        btnShare.setEnabled(true);
+        btnShare.setText("Share Post");
+
+        String message;
+        if (failedUploads == 0) {
+            message = "All " + successfulUploads + " images uploaded successfully!";
+        } else if (successfulUploads == 0) {
+            message = "All uploads failed. Please try again.";
+        } else {
+            message = successfulUploads + " uploaded, " + failedUploads + " failed.";
+        }
+        Toast.makeText(getContext(), message, Toast.LENGTH_LONG).show();
+
+        // Clear inputs if at least one succeeded
+        if (successfulUploads > 0) {
+            ivPostImage.setImageResource(R.drawable.ic_placeholder_image);
+            ivPostImage.setImageTintList(android.content.res.ColorStateList.valueOf(android.graphics.Color.parseColor("#B0B0B5")));
+            ivPostImage.setPadding(80, 80, 80, 80);
+            ivPostImage.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+            etCaption.setText("");
+            selectedImageUri = null;
+            selectedImageUris.clear();
+            updateImageCountDisplay();
+        }
     }
 
     private File getFileFromUri(Uri uri) {

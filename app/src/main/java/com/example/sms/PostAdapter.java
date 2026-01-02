@@ -195,11 +195,51 @@ public class PostAdapter extends RecyclerView.Adapter<PostAdapter.PostViewHolder
     }
 
     private void sharePost(android.content.Context context, String url, String caption) {
-        android.content.Intent shareIntent = new android.content.Intent(android.content.Intent.ACTION_SEND);
-        shareIntent.setType("text/plain");
-        shareIntent.putExtra(android.content.Intent.EXTRA_SUBJECT, "Check out this post on Snapshot");
-        shareIntent.putExtra(android.content.Intent.EXTRA_TEXT, caption + "\n\n" + url);
-        context.startActivity(android.content.Intent.createChooser(shareIntent, "Share post via"));
+        android.widget.Toast.makeText(context, "Preparing image...", android.widget.Toast.LENGTH_SHORT).show();
+        
+        Glide.with(context)
+                .asBitmap()
+                .load(url)
+                .into(new com.bumptech.glide.request.target.CustomTarget<android.graphics.Bitmap>() {
+                    @Override
+                    public void onResourceReady(@NonNull android.graphics.Bitmap resource, @Nullable com.bumptech.glide.request.transition.Transition<? super android.graphics.Bitmap> transition) {
+                        shareImageBitmap(context, resource, caption);
+                    }
+
+                    @Override
+                    public void onLoadCleared(@Nullable android.graphics.drawable.Drawable placeholder) {}
+                });
+    }
+
+    private void shareImageBitmap(android.content.Context context, android.graphics.Bitmap bitmap, String caption) {
+        try {
+            // Save to cache directory for sharing
+            java.io.File cachePath = new java.io.File(context.getCacheDir(), "shared_images");
+            cachePath.mkdirs();
+            java.io.File imageFile = new java.io.File(cachePath, "share_" + System.currentTimeMillis() + ".jpg");
+            
+            java.io.FileOutputStream stream = new java.io.FileOutputStream(imageFile);
+            bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 100, stream);
+            stream.close();
+            
+            // Get content URI using FileProvider
+            android.net.Uri contentUri = androidx.core.content.FileProvider.getUriForFile(context,
+                    context.getPackageName() + ".fileprovider", imageFile);
+            
+            // Create share intent with image
+            android.content.Intent shareIntent = new android.content.Intent(android.content.Intent.ACTION_SEND);
+            shareIntent.setType("image/jpeg");
+            shareIntent.putExtra(android.content.Intent.EXTRA_STREAM, contentUri);
+            if (caption != null && !caption.isEmpty()) {
+                shareIntent.putExtra(android.content.Intent.EXTRA_TEXT, caption);
+            }
+            shareIntent.addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            
+            context.startActivity(android.content.Intent.createChooser(shareIntent, "Share image via"));
+        } catch (Exception e) {
+            e.printStackTrace();
+            android.widget.Toast.makeText(context, "Failed to share image", android.widget.Toast.LENGTH_SHORT).show();
+        }
     }
 
     @Override

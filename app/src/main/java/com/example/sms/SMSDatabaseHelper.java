@@ -59,7 +59,7 @@ public class SMSDatabaseHelper extends SQLiteOpenHelper {
         values.put(COLUMN_TYPE, type);
 
         db.insert(TABLE_SMS, null, values);
-        db.close();
+        // Don't close db here - managed by SQLiteOpenHelper
     }
 
     private boolean isExists(String sender, String message, String timestamp) {
@@ -69,6 +69,7 @@ public class SMSDatabaseHelper extends SQLiteOpenHelper {
             new String[]{sender, message, timestamp});
         boolean exists = (cursor.getCount() > 0);
         cursor.close();
+        // Don't close db here - managed by SQLiteOpenHelper
         return exists;
     }
 
@@ -106,6 +107,6 @@ public class SMSDatabaseHelper extends SQLiteOpenHelper {
     public void deleteSMS(String timestamp) {
         SQLiteDatabase db = this.getWritableDatabase();
         db.delete(TABLE_SMS, COLUMN_TIMESTAMP + " = ?", new String[]{timestamp});
-        db.close();
+        // Don't close db here - managed by SQLiteOpenHelper
     }
 }

@@ -99,12 +99,30 @@ public class SendSMSTask extends AsyncTask<Void, Void, Void> {
                 Log.d("SendSMSTask", "SMS successfully sent to server.");
                 return true;
             } else {
+                // Read error response body
+                java.io.BufferedReader br = new java.io.BufferedReader(
+                    new java.io.InputStreamReader(conn.getErrorStream()));
+                StringBuilder errorResponse = new StringBuilder();
+                String line;
+                while ((line = br.readLine()) != null) {
+                    errorResponse.append(line);
+                }
+                br.close();
                 Log.e("SendSMSTask", "Failed to send SMS, response code: " + responseCode);
+                Log.e("SendSMSTask", "Error response: " + errorResponse.toString());
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            Log.e("SendSMSTask", "Exception sending SMS", e);
         }
         return false;
+    }
+
+    @Override
+    protected void onPostExecute(Void result) {
+        super.onPostExecute(result);
+        if (dbHelper != null) {
+            dbHelper.close();
+        }
     }
 
     /**
